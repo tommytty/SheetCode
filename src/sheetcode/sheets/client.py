@@ -194,7 +194,15 @@ class SheetsClient:
     def append_row(self, tab: str, values: dict[str, str]) -> dict:
         """Appends a new row to tab, at a position the server chooses. values maps
         header names to cell values; unspecified headers are left blank. If the
-        row is written but logging it fails, the result carries a "warning"."""
+        row is written but logging it fails, the result carries a "warning".
+        The log tab is written only by the client itself, so appending to it
+        raises ValueError."""
+
+        if tab.strip().lower() == LOG_TAB:
+            raise ValueError(
+                f"Cannot append to the {LOG_TAB!r} tab; its entries are written "
+                "automatically when a row is added or updated."
+            )
 
         headers = self._headers(tab)
         row = [""] * len(headers)
@@ -224,12 +232,20 @@ class SheetsClient:
         return result
 
     def update_cells(
-        self, tab: str, slug: str, fields: dict[str, str], action: str = "completed"
+        self, tab: str, slug: str, fields: dict[str, str], action: str
     ) -> dict:
         """Updates named fields on the row matching slug. Looks the row up by slug
-        at write time, since the sheet may have been re-sorted by hand. Returns the
+        at write time, since the sheet may have been re-sorted by hand. action is
+        recorded in the log entry: "completed", "skipped" or "edited". Returns the
         row's state before and after the write, read back from the sheet. If the
-        cells are written but logging it fails, the result carries a "warning"."""
+        cells are written but logging it fails, the result carries a "warning".
+        The log tab is append-only, so updating it raises ValueError."""
+
+        if tab.strip().lower() == LOG_TAB:
+            raise ValueError(
+                f"Cannot update the {LOG_TAB!r} tab; it is append-only and its "
+                "entries are written automatically."
+            )
 
         headers = self._headers(tab)
         row_number = self._find_row_by_slug(tab, slug)

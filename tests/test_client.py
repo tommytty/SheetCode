@@ -298,6 +298,28 @@ def test_append_row_with_an_unknown_field_raises_and_writes_nothing(
     assert fake.tabs == tabs_before
 
 
+@pytest.mark.parametrize("tab", ["log", "Log"])
+def test_append_row_to_the_log_tab_raises_and_writes_nothing(
+    fake: FakeSheetsService, client: SheetsClient, tab: str
+) -> None:
+    tabs_before = copy.deepcopy(fake.tabs)
+
+    with pytest.raises(ValueError, match="Cannot append to the 'log' tab"):
+        client.append_row(
+            tab,
+            {
+                "timestamp": "2026-10-13T12:00:00-07:00",
+                "slug": "two-sum",
+                "action": "completed",
+                "interval_before": "7",
+                "interval_after": "11",
+                "next_review": "2026-10-31",
+            },
+        )
+
+    assert fake.tabs == tabs_before
+
+
 # update_cells
 
 
@@ -308,7 +330,10 @@ def test_update_cells_finds_the_row_after_the_sheet_is_reordered(
     fake.tabs["Sheet1"][1:] = [list(LRU_CACHE), list(TWO_SUM), list(VALID_PARENS)]
 
     client.update_cells(
-        "Sheet1", "two-sum", {"interval_days": "11", "next_review": "2026-10-31"}
+        "Sheet1",
+        "two-sum",
+        {"interval_days": "11", "next_review": "2026-10-31"},
+        action="completed",
     )
 
     assert fake.tabs["Sheet1"] == [
@@ -321,7 +346,10 @@ def test_update_cells_finds_the_row_after_the_sheet_is_reordered(
 
 def test_update_cells_returns_before_and_after_state(client: SheetsClient) -> None:
     result = client.update_cells(
-        "Sheet1", "two-sum", {"interval_days": "11", "next_review": "2026-10-31"}
+        "Sheet1",
+        "two-sum",
+        {"interval_days": "11", "next_review": "2026-10-31"},
+        action="completed",
     )
 
     assert result == {
@@ -349,7 +377,10 @@ def test_update_cells_after_state_is_read_back_from_the_sheet(
     fake: FakeSheetsService, client: SheetsClient
 ) -> None:
     result = client.update_cells(
-        "Sheet1", "lru-cache", {"interval_days": "5", "time_complexity": "O(log n)"}
+        "Sheet1",
+        "lru-cache",
+        {"interval_days": "5", "time_complexity": "O(log n)"},
+        action="completed",
     )
 
     assert result["after"] == sheet_row(fake, "lru-cache")
@@ -362,7 +393,10 @@ def test_update_cells_logs_a_completed_entry_with_both_intervals(
     fake.tabs["Sheet1"][1:] = [list(VALID_PARENS), list(LRU_CACHE), list(TWO_SUM)]
 
     client.update_cells(
-        "Sheet1", "two-sum", {"interval_days": "11", "next_review": "2026-10-31"}
+        "Sheet1",
+        "two-sum",
+        {"interval_days": "11", "next_review": "2026-10-31"},
+        action="completed",
     )
 
     entry = new_log_entry(fake)
@@ -398,13 +432,58 @@ def test_update_cells_skipped_logs_a_skipped_entry(
     }
 
 
+def test_update_cells_edited_logs_an_edited_entry(
+    fake: FakeSheetsService, client: SheetsClient
+) -> None:
+    result = client.update_cells(
+        "Sheet1",
+        "two-sum",
+        {"time_complexity": "O(n)", "space_complexity": "O(n)"},
+        action="edited",
+    )
+
+    assert fake.tabs["Sheet1"][1] == [
+        "Two Sum",
+        "two-sum",
+        "2026-10-20",
+        "7",
+        "O(n)",
+        "O(n)",
+    ]
+    assert result["before"]["time_complexity"] == ""
+    assert result["after"]["time_complexity"] == "O(n)"
+
+    entry = new_log_entry(fake)
+    del entry["timestamp"]
+    assert entry == {
+        "slug": "two-sum",
+        "action": "edited",
+        "interval_before": "7",
+        "interval_after": "7",
+        "next_review": "2026-10-20",
+    }
+
+
+def test_update_cells_without_an_action_raises_and_writes_nothing(
+    fake: FakeSheetsService, client: SheetsClient
+) -> None:
+    tabs_before = copy.deepcopy(fake.tabs)
+
+    with pytest.raises(TypeError, match="action"):
+        client.update_cells("Sheet1", "two-sum", {"interval_days": "11"})  # type: ignore[call-arg]
+
+    assert fake.tabs == tabs_before
+
+
 def test_update_cells_on_an_unknown_slug_raises_and_writes_nothing(
     fake: FakeSheetsService, client: SheetsClient
 ) -> None:
     tabs_before = copy.deepcopy(fake.tabs)
 
     with pytest.raises(ValueError, match="No row found .* slug 'three-sum'"):
-        client.update_cells("Sheet1", "three-sum", {"interval_days": "5"})
+        client.update_cells(
+            "Sheet1", "three-sum", {"interval_days": "5"}, action="completed"
+        )
 
     assert fake.tabs == tabs_before
 
@@ -416,7 +495,10 @@ def test_update_cells_with_an_unknown_field_raises_and_writes_nothing(
 
     with pytest.raises(ValueError, match="Unknown field 'difficulty'"):
         client.update_cells(
-            "Sheet1", "two-sum", {"interval_days": "11", "difficulty": "easy"}
+            "Sheet1",
+            "two-sum",
+            {"interval_days": "11", "difficulty": "easy"},
+            action="completed",
         )
 
     assert fake.tabs == tabs_before
@@ -430,7 +512,23 @@ def test_update_cells_on_a_tab_with_no_data_rows_raises_for_the_missing_slug(
     tabs_before = copy.deepcopy(fake.tabs)
 
     with pytest.raises(ValueError, match="No row found .* slug 'two-sum'"):
-        client.update_cells("Sheet1", "two-sum", {"interval_days": "11"})
+        client.update_cells(
+            "Sheet1", "two-sum", {"interval_days": "11"}, action="completed"
+        )
+
+    assert fake.tabs == tabs_before
+
+
+@pytest.mark.parametrize("tab", ["log", "Log"])
+def test_update_cells_on_the_log_tab_raises_and_writes_nothing(
+    fake: FakeSheetsService, client: SheetsClient, tab: str
+) -> None:
+    # The seeded log entry has slug two-sum, so without the guard this would
+    # find that row and rewrite it.
+    tabs_before = copy.deepcopy(fake.tabs)
+
+    with pytest.raises(ValueError, match="Cannot update the 'log' tab"):
+        client.update_cells(tab, "two-sum", {"action": "skipped"}, action="edited")
 
     assert fake.tabs == tabs_before
 
@@ -447,7 +545,7 @@ def test_update_cells_on_a_tab_with_no_data_rows_raises_for_the_missing_slug(
         ),
         pytest.param(
             lambda client: client.update_cells(
-                "Sheet1", "two-sum", {"interval_days": "11"}
+                "Sheet1", "two-sum", {"interval_days": "11"}, action="completed"
             ),
             id="update_cells",
         ),
@@ -470,7 +568,9 @@ def test_writing_to_a_tab_with_no_header_row_raises_and_writes_nothing(
 
 def test_successful_writes_carry_no_warning(client: SheetsClient) -> None:
     appended = client.append_row("Sheet1", {"problem": "3Sum", "slug": "3sum"})
-    updated = client.update_cells("Sheet1", "two-sum", {"interval_days": "11"})
+    updated = client.update_cells(
+        "Sheet1", "two-sum", {"interval_days": "11"}, action="completed"
+    )
 
     assert "warning" not in appended
     assert "warning" not in updated
@@ -498,7 +598,10 @@ def test_update_cells_returns_a_warning_when_the_log_write_fails(
     fake.fail_appends_to.add("log")
 
     result = client.update_cells(
-        "Sheet1", "two-sum", {"interval_days": "11", "next_review": "2026-10-31"}
+        "Sheet1",
+        "two-sum",
+        {"interval_days": "11", "next_review": "2026-10-31"},
+        action="completed",
     )
 
     assert sheet_row(fake, "two-sum")["interval_days"] == "11"

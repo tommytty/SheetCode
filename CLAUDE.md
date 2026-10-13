@@ -75,8 +75,8 @@ Tab `log`, append-only:
 | E | `interval_after` |
 | F | `next_review` |
 
-`action` is one of `added`, `completed`, `skipped`. `interval_before` is empty
-for `added` rows.
+`action` is one of `added`, `completed`, `skipped`, `edited`.
+`interval_before` is empty for `added` rows.
 
 Dates are stored and displayed as `yyyy-mm-dd`. Sheet locale and timezone are
 set to Canada / Vancouver.
@@ -135,17 +135,20 @@ empty result.
 ### `append_row(tab, values)`
 
 Adds a row at the end. The server finds the end of the data; Claude never
-passes a row number. Used for new problems and for log entries.
+passes a row number. Used for new problems only, not for log entries: the
+client writes those itself, and `append_row` raises `ValueError` when `tab` is
+the `log` tab.
 
-### `update_cells(tab, slug, fields, action="completed")`
+### `update_cells(tab, slug, fields, action)`
 
 Updates named fields on the row matching `slug`. Claude passes field names and
 values, never an A1 range, so it cannot write to the wrong row.
 
-`action` controls the `log` tab entry for this write. It defaults to
-`"completed"`; Claude passes `"skipped"` explicitly when that's the case,
-since the server has no basis for inferring intent from which fields
-changed.
+`action` controls the `log` tab entry for this write and is required, with no
+default: `"completed"` or `"skipped"` for a review, `"edited"` for a change
+that is not a review, such as filling in the complexity columns. Claude always
+says which, since the server has no basis for inferring intent from which
+fields changed.
 
 Returns **before and after state**:
 
@@ -197,7 +200,8 @@ private key. Never read it into a tool response or a log line.
 `auth.py` and `client.py` are complete. `client.py` is tested in
 `tests/test_client.py` against an in-memory fake in `tests/fake_sheets.py`,
 and the tests were verified to fail under deliberate mutations. `server.py`
-still has only the placeholder `add()` tool and is next.
+has the four tools. They were exercised in-process against the fake but not
+yet against the real sheet, and `server.py` has no automated tests of its own.
 
 ## Out of scope for v1
 
