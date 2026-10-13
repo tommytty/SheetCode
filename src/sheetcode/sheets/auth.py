@@ -1,9 +1,10 @@
 import os
-from dotenv import load_dotenv
-from googleapiclient.discovery import build, Resource
-from google.oauth2.service_account import Credentials
-from pydantic import BaseModel
 from pathlib import Path
+
+from dotenv import load_dotenv
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import Resource, build
+from pydantic import BaseModel
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -16,9 +17,8 @@ class SheetConfig(BaseModel):
     google_credentials_path: Path
 
 
-
 def load_config() -> SheetConfig:
-    """ Grabs the .env variables and loads them up. Runs a quick check and returns
+    """Grabs the .env variables and loads them up. Runs a quick check and returns
     a base model object SheetConfig"""
 
     sheet_id = os.getenv("SHEET_ID")
@@ -43,10 +43,9 @@ def _get_credentials(config: SheetConfig) -> Credentials:
     return credentials
 
 
-
 def get_service(config: SheetConfig) -> Resource:
-    """ Creates the service_object required for the client to use"""
-    
+    """Creates the service_object required for the client to use"""
+
     credentials = _get_credentials(config)
     sheet_object = build("sheets", "v4", credentials=credentials)
 

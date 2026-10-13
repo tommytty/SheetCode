@@ -194,8 +194,10 @@ private key. Never read it into a tool response or a log line.
 
 ## Current state
 
-`auth.py` and `client.py` are complete. `server.py` still has only the
-placeholder `add()` tool. No tests are written yet.
+`auth.py` and `client.py` are complete. `client.py` is tested in
+`tests/test_client.py` against an in-memory fake in `tests/fake_sheets.py`,
+and the tests were verified to fail under deliberate mutations. `server.py`
+still has only the placeholder `add()` tool and is next.
 
 ## Out of scope for v1
 

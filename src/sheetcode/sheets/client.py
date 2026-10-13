@@ -125,6 +125,19 @@ class SheetsClient:
             body={"values": [row]},
         ).execute()
 
+    def _log_or_warn(self, **entry: str) -> str | None:
+        """Writes a log entry for a sheet write that has already happened. A
+        failure here must not hide that write, so it comes back as a warning
+        message instead of raising. Returns None when the entry was logged."""
+        try:
+            self._append_log(**entry)
+        except Exception as exc:  # noqa: BLE001 - whatever broke, the write stands
+            return (
+                "The write succeeded, but its entry could not be added to the "
+                f"{LOG_TAB!r} tab: {exc}"
+            )
+        return None
+
     def get_schema(self) -> dict:
         """Returns every tab's name, its headers mapped to column letters, and the
         first data row as a sample of the real value formats."""
@@ -180,7 +193,8 @@ class SheetsClient:
 
     def append_row(self, tab: str, values: dict[str, str]) -> dict:
         """Appends a new row to tab, at a position the server chooses. values maps
-        header names to cell values; unspecified headers are left blank."""
+        header names to cell values; unspecified headers are left blank. If the
+        row is written but logging it fails, the result carries a "warning"."""
 
         headers = self._headers(tab)
         row = [""] * len(headers)
@@ -196,7 +210,7 @@ class SheetsClient:
         ).execute()
         row_number = _row_number_from_range(response["updates"]["updatedRange"])
 
-        self._append_log(
+        warning = self._log_or_warn(
             slug=str(values.get("slug", "")),
             action="added",
             interval_before="",
@@ -204,14 +218,18 @@ class SheetsClient:
             next_review=str(values.get("next_review", "")),
         )
 
-        return {"tab": tab, "row": row_number, "values": dict(zip(headers, row))}
+        result = {"tab": tab, "row": row_number, "values": dict(zip(headers, row))}
+        if warning:
+            result["warning"] = warning
+        return result
 
     def update_cells(
         self, tab: str, slug: str, fields: dict[str, str], action: str = "completed"
     ) -> dict:
         """Updates named fields on the row matching slug. Looks the row up by slug
         at write time, since the sheet may have been re-sorted by hand. Returns the
-        row's state before and after the write, read back from the sheet."""
+        row's state before and after the write, read back from the sheet. If the
+        cells are written but logging it fails, the result carries a "warning"."""
 
         headers = self._headers(tab)
         row_number = self._find_row_by_slug(tab, slug)
@@ -237,7 +255,7 @@ class SheetsClient:
 
         after = self._row_as_dict(headers, row_range)
 
-        self._append_log(
+        warning = self._log_or_warn(
             slug=slug,
             action=action,
             interval_before=before.get("interval_days", ""),
@@ -245,4 +263,7 @@ class SheetsClient:
             next_review=after.get("next_review", ""),
         )
 
-        return {"slug": slug, "before": before, "after": after}
+        result = {"slug": slug, "before": before, "after": after}
+        if warning:
+            result["warning"] = warning
+        return result
