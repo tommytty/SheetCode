@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import Resource, build
+from googleapiclient.discovery import build
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from googleapiclient._apis.sheets.v4 import SheetsResource
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -31,7 +35,7 @@ def load_config() -> SheetConfig:
         raise RuntimeError("GOOGLE_CREDENTIALS_PATH not set")
 
     config = SheetConfig(
-        sheet_id=sheet_id, google_credentials_path=google_credentials_path
+        sheet_id=sheet_id, google_credentials_path=Path(google_credentials_path)
     )
     return config
 
@@ -43,7 +47,7 @@ def _get_credentials(config: SheetConfig) -> Credentials:
     return credentials
 
 
-def get_service(config: SheetConfig) -> Resource:
+def get_service(config: SheetConfig) -> "SheetsResource":
     """Creates the service_object required for the client to use"""
 
     credentials = _get_credentials(config)

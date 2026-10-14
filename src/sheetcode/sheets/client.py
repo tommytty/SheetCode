@@ -1,7 +1,10 @@
 import re
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from googleapiclient.discovery import Resource
+if TYPE_CHECKING:
+    from googleapiclient._apis.sheets.v4 import SheetsResource
+    from googleapiclient._apis.sheets.v4.schemas import ValueRange
 
 from .auth import get_service, load_config
 
@@ -45,7 +48,7 @@ def _expected_row_count(range_str: str) -> int | None:
 class SheetsClient:
     """All Google Sheets I/O for the tracked spreadsheet. Knows nothing about MCP."""
 
-    def __init__(self, service: Resource, sheet_id: str) -> None:
+    def __init__(self, service: "SheetsResource", sheet_id: str) -> None:
         self.service = service
         self.sheet_id = sheet_id
 
@@ -57,7 +60,7 @@ class SheetsClient:
         return cls(service=service, sheet_id=config.sheet_id)
 
     @property
-    def _values(self):
+    def _values(self) -> "SheetsResource.SpreadsheetsResource.ValuesResource":
         return self.service.spreadsheets().values()
 
     def _get_values(self, range_str: str) -> list[list[str]]:
@@ -257,7 +260,7 @@ class SheetsClient:
 
         before = self._row_as_dict(headers, row_range)
 
-        data = [
+        data: list[ValueRange] = [
             {
                 "range": f"{tab}!{_column_letter(self._field_to_column(headers, field))}{row_number}",
                 "values": [[str(value)]],

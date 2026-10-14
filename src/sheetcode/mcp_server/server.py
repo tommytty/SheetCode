@@ -134,5 +134,10 @@ def update_cells(
     return _get_client().update_cells(tab, slug, fields, action)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entry point for the sheetcode-mcp script. Serves over stdio."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
